@@ -9,8 +9,9 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // 1. Configuration
+// NOTE: Make sure 'googlekey.json' is uploaded as a Secret File in Render!
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // <--- PASTE FOLDER ID HERE AGAIN
+const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // <--- ⚠️ PASTE YOUR FOLDER ID HERE
 
 // 2. Middleware
 app.use(cors({ origin: '*' }));
@@ -19,7 +20,7 @@ app.use(express.json());
 // 3. Multer (File Handling)
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // Increased limit to 50MB for Videos
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
 // 4. Google Drive Auth
@@ -68,7 +69,7 @@ app.post('/api/orders', upload.single('idProof'), async (req, res) => {
         
         res.status(201).json({ message: "Order Saved", order: finalOrder });
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Order Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -81,20 +82,21 @@ app.post('/api/orders/video', upload.single('video'), async (req, res) => {
         
         if (req.file) {
             console.log(`Uploading Video for ${orderId}...`);
-            // Rename: TM-1234_KYC_VIDEO.webm
             const newName = `${orderId}_KYC_VIDEO.webm`; 
             const fileId = await uploadToDrive(req.file, newName);
             
-            // Update the order in memory
+            // Update the order status
             const order = orders.find(o => o.order_id === orderId);
             if (order) order.videoFileId = fileId;
 
+            console.log("Video Upload Success:", fileId);
             res.json({ message: "Video Uploaded", fileId: fileId });
         } else {
+            console.log("No video file received");
             res.status(400).json({ message: "No video file received" });
         }
     } catch (error) {
-        console.error("Video Error:", error);
+        console.error("Video Error:", error); // Check Render Logs for this!
         res.status(500).json({ error: error.message });
     }
 });
