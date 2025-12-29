@@ -1,62 +1,64 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
-// Allow Netlify Frontend to talk to this Backend
+const PORT = process.env.PORT || 10000;
+
+// 1. Middleware (Security & Data Parsing)
 app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    origin: '*', // Allow connections from anywhere
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type']
 }));
-app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json()); // Allow server to read JSON data
 
-const PORT = process.env.PORT || 3000;
+// 2. In-Memory Database (Resets when server restarts)
+// Ideally, you would use MongoDB here, but this works perfectly for a demo.
+let orders = []; 
 
-// THIS GETS THE KEY FROM RENDER SETTINGS
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// 3. ROUTES (The API Logic)
 
-// 1. HEALTH CHECK (To see if server is alive)
-app.get('/', (req, res) => {
-    res.send('🦄 Typomaster AI Engine is Running!');
+// GET: Admin panel asks "Give me all orders"
+app.get('/api/orders', (req, res) => {
+    res.json(orders);
 });
 
-// 2. AI DRAFT GENERATOR
-app.post('/generate-ai-draft', async (req, res) => {
-    try {
-        const { serviceType, details } = req.body;
-        console.log(`🤖 AI is drafting a ${serviceType}...`);
-
-        // A. The Instruction for AI
-        const prompt = `
-        Act as a Senior Legal Expert in India. Write a professional ${serviceType}.
-        Details: ${JSON.stringify(details)}
-        Rules:
-        1. Use formal legal language suitable for Indian courts.
-        2. Do not use placeholders like [Date], use today's date.
-        3. Return ONLY the document text. No "Here is your draft" intro.
-        `;
-
-        // B. Ask AI
-        const model = genAI.getGenerativeModel({ model: "gemini-pro"});
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const draftText = response.text();
-
-        // C. Send back to Website
-        res.json({ status: "success", draft: draftText });
-
-    } catch (error) {
-        console.error("AI Error:", error);
-        res.status(500).json({ status: "error", message: "AI Failed. Check Server Logs." });
+// GET: Track page asks "Where is Order TM-1234?"
+app.get('/api/orders/:id', (req, res) => {
+    const order = orders.find(o => o.order_id === req.params.id);
+    if (order) {
+        res.json(order);
+    } else {
+        res.status(404).json({ message: "Order not found" });
     }
 });
 
-// 3. START SERVER
+// POST: Order page sends "Here is a new order"
+app.post('/api/orders', (req, res) => {
+    const newOrder = req.body;
+    orders.push(newOrder); // Save it to our list
+    console.log("New Order Received:", newOrder.order_id);
+    res.status(201).json({ message: "Order Saved", order: newOrder });
+});
+
+// PATCH: Admin updates status "Mark as Dispatched"
+app.patch('/api/orders/:id', (req, res) => {
+    const order = orders.find(o => o.order_id === req.params.id);
+    if (order) {
+        order.status = req.body.status; // Update status
+        res.json({ message: "Status Updated", order: order });
+    } else {
+        res.status(404).json({ message: "Order not found" });
+    }
+});
+
+// DELETE: Admin deletes an order
+app.delete('/api/orders/:id', (req, res) => {
+    orders = orders.filter(o => o.order_id !== req.params.id);
+    res.json({ message: "Order Deleted" });
+});
+
+// 4. Start the Server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
