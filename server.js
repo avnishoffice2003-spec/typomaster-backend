@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 10000;
 
 // --- CONFIGURATION ---
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Your Verified ID
+const DRIVE_FOLDER_ID = '1ud0htJHfwMKoB3WxkDGwgCCaoLWmuGo2'; // Your Verified ID
 
 // --- MIDDLEWARE (Optimized for Large Files) ---
 app.use(cors({ origin: '*' }));
@@ -101,35 +101,3 @@ app.post('/api/orders/video', upload.single('video'), async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-// ... existing code ...
-
-// COPY AND PASTE THIS AT THE VERY END OF SERVER.JS
-async function testDriveConnection() {
-    console.log("---------------------------------------");
-    console.log("🔍 STARTUP TEST: Checking Google Drive Access...");
-    try {
-        const driveService = google.drive({ version: 'v3', auth });
-        const res = await driveService.files.create({
-            resource: { name: 'SERVER_TEST_FILE.txt', parents: [DRIVE_FOLDER_ID] },
-            media: { mimeType: 'text/plain', body: 'If you see this, the connection is PERFECT!' },
-            fields: 'id'
-        });
-        console.log("✅ SUCCESS! The Robot can WRITE to the folder.");
-        console.log("✅ Test File Created with ID:", res.data.id);
-    } catch (error) {
-        console.error("❌ CRITICAL ERROR: The Robot CANNOT write to the folder.");
-        console.error("❌ Error Message:", error.message);
-        
-        if (error.message.includes('quota')) {
-            console.error("👉 FIX: You shared the folder, but the ROBOT is trying to use its OWN drive.");
-            console.error("👉 CAUSE: The Folder ID '" + DRIVE_FOLDER_ID + "' might be wrong.");
-        }
-        if (error.message.includes('File not found')) {
-            console.error("👉 FIX: The Folder ID does not exist. Check the ID again.");
-        }
-    }
-    console.log("---------------------------------------");
-}
-
-// Run the test immediately when server starts
-testDriveConnection();
