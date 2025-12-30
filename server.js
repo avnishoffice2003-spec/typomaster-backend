@@ -9,9 +9,18 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // 1. Configuration
-// NOTE: Make sure 'googlekey.json' is uploaded as a Secret File in Render!
+// ... imports ...
+
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // <--- ⚠️ PASTE YOUR FOLDER ID HERE
+const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Double check this line!
+
+// ADD THESE 3 LINES:
+console.log("---------------------------------------");
+console.log("DEBUG CHECK: Folder ID is:", DRIVE_FOLDER_ID);
+console.log("DEBUG CHECK: Key File exists?", require('fs').existsSync(GOOGLE_KEYFILE));
+console.log("---------------------------------------");
+
+// ... rest of code ...
 
 // 2. Middleware
 app.use(cors({ origin: '*' }));
