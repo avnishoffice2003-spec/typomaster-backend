@@ -12,13 +12,21 @@ const PORT = process.env.PORT || 10000;
 // ... imports ...
 
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Double check this line!
+const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Your ID from the logs
 
-// ADD THESE 3 LINES:
+// --- UPDATED DEBUG SECTION ---
 console.log("---------------------------------------");
 console.log("DEBUG CHECK: Folder ID is:", DRIVE_FOLDER_ID);
-console.log("DEBUG CHECK: Key File exists?", require('fs').existsSync(GOOGLE_KEYFILE));
+
+try {
+    const keyData = require(GOOGLE_KEYFILE);
+    console.log("DEBUG CHECK: The Robot Email is:", keyData.client_email); 
+    // ^^^ THIS WILL TELL YOU THE EXACT EMAIL TO SHARE ^^^
+} catch (e) {
+    console.log("DEBUG CHECK: Could not read email from key file");
+}
 console.log("---------------------------------------");
+// -----------------------------
 
 // ... rest of code ...
 
