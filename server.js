@@ -8,113 +8,95 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// 1. Configuration
-// ... imports ...
-
+// --- CONFIGURATION ---
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Your ID from the logs
+const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; // Your Verified ID
 
-// --- UPDATED DEBUG SECTION ---
-console.log("---------------------------------------");
-console.log("DEBUG CHECK: Folder ID is:", DRIVE_FOLDER_ID);
-
-try {
-    const keyData = require(GOOGLE_KEYFILE);
-    console.log("DEBUG CHECK: The Robot Email is:", keyData.client_email); 
-    // ^^^ THIS WILL TELL YOU THE EXACT EMAIL TO SHARE ^^^
-} catch (e) {
-    console.log("DEBUG CHECK: Could not read email from key file");
-}
-console.log("---------------------------------------");
-// -----------------------------
-
-// ... rest of code ...
-
-// 2. Middleware
+// --- MIDDLEWARE (Optimized for Large Files) ---
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '100mb' })); // Allow large JSON
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// 3. Multer (File Handling)
+// --- MULTER SETUP (50MB Limit) ---
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+    limits: { fileSize: 100 * 1024 * 1024 } // Increased to 100MB
 });
 
-// 4. Google Drive Auth
+// --- GOOGLE AUTH ---
 const auth = new google.auth.GoogleAuth({
     keyFile: GOOGLE_KEYFILE,
     scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
 
-// 5. Helper: Upload to Drive
+// --- HELPER: ROBUST UPLOAD FUNCTION ---
 const uploadToDrive = async (fileObject, fileName) => {
-    const driveService = google.drive({ version: 'v3', auth });
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(fileObject.buffer);
+    try {
+        console.log(`Starting upload for: ${fileName}`);
+        const driveService = google.drive({ version: 'v3', auth });
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(fileObject.buffer);
 
-    const response = await driveService.files.create({
-        resource: { name: fileName, parents: [DRIVE_FOLDER_ID] },
-        media: { mimeType: fileObject.mimetype, body: bufferStream },
-        fields: 'id'
-    });
-    return response.data.id;
+        const response = await driveService.files.create({
+            resource: { name: fileName, parents: [DRIVE_FOLDER_ID] },
+            media: { mimeType: fileObject.mimetype, body: bufferStream },
+            fields: 'id'
+        });
+        console.log(`Upload Complete. ID: ${response.data.id}`);
+        return response.data.id;
+    } catch (error) {
+        console.error("GOOGLE DRIVE ERROR:", error.message);
+        throw error; // Pass error up to be caught
+    }
 };
 
 // --- ROUTES ---
 
-// In-Memory Database
 let orders = [];
 
-// GET Orders
 app.get('/api/orders', (req, res) => res.json(orders));
 
-// POST: Create Order (Step 1: ID Proof)
 app.post('/api/orders', upload.single('idProof'), async (req, res) => {
     try {
-        console.log("Receiving Order...");
         const orderData = JSON.parse(req.body.orderData);
-        
         let fileId = "No File";
         if (req.file) {
-            console.log("Uploading ID Proof...");
             const newName = `${orderData.order_id}_ID_PROOF${path.extname(req.file.originalname)}`;
             fileId = await uploadToDrive(req.file, newName);
         }
-
         const finalOrder = { ...orderData, driveFileId: fileId, videoFileId: "Pending" };
         orders.push(finalOrder);
-        
         res.status(201).json({ message: "Order Saved", order: finalOrder });
     } catch (error) {
-        console.error("Order Error:", error);
+        console.error("ORDER ERROR:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// POST: Upload Video (Step 2: Video KYC)
+// --- VIDEO ROUTE (With Better Error Handling) ---
 app.post('/api/orders/video', upload.single('video'), async (req, res) => {
     try {
-        console.log("Receiving Video...");
-        const orderId = req.body.orderId;
+        console.log("Receiving Video Request...");
+        const orderId = req.body.orderId || "UNKNOWN_ORDER";
         
-        if (req.file) {
-            console.log(`Uploading Video for ${orderId}...`);
-            const newName = `${orderId}_KYC_VIDEO.webm`; 
-            const fileId = await uploadToDrive(req.file, newName);
-            
-            // Update the order status
-            const order = orders.find(o => o.order_id === orderId);
-            if (order) order.videoFileId = fileId;
-
-            console.log("Video Upload Success:", fileId);
-            res.json({ message: "Video Uploaded", fileId: fileId });
-        } else {
-            console.log("No video file received");
-            res.status(400).json({ message: "No video file received" });
+        if (!req.file) {
+            console.error("No video file found in request");
+            return res.status(400).json({ message: "No video file received" });
         }
+
+        console.log(`File received: ${req.file.size} bytes`);
+        const newName = `${orderId}_KYC_VIDEO.webm`; 
+        const fileId = await uploadToDrive(req.file, newName);
+        
+        const order = orders.find(o => o.order_id === orderId);
+        if (order) order.videoFileId = fileId;
+
+        res.json({ message: "Video Uploaded", fileId: fileId });
+
     } catch (error) {
-        console.error("Video Error:", error); // Check Render Logs for this!
-        res.status(500).json({ error: error.message });
+        console.error("CRITICAL VIDEO ERROR:", error);
+        // This is the error appearing in your browser. Now we log it.
+        res.status(500).json({ error: error.message, details: "Check Server Logs" });
     }
 });
 
