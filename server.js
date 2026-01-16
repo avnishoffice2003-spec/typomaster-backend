@@ -1,56 +1,123 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const multer = require('multer');
+const { google } = require('googleapis');
+const stream = require('stream');
+const path = require('path');
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+const PORT = process.env.PORT || 10000;
 
-const PORT = process.env.PORT || 3000;
+// --- CONFIGURATION ---
+const GOOGLE_KEYFILE = './googlekey.json'; 
+// This is your NEW folder ID:
+const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; 
 
-// THIS GETS THE KEY FROM RENDER SETTINGS
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// --- MIDDLEWARE (Optimized for Large Files) ---
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// 1. HEALTH CHECK (To see if server is alive)
-app.get('/', (req, res) => {
-    res.send('🦄 Typomaster AI Engine is Running!');
+// --- MULTER SETUP (50MB Limit) ---
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-// 2. AI DRAFT GENERATOR
-app.post('/generate-ai-draft', async (req, res) => {
+// --- GOOGLE AUTH ---
+const auth = new google.auth.GoogleAuth({
+    keyFile: GOOGLE_KEYFILE,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+});
+
+// --- HELPER: ROBUST UPLOAD FUNCTION ---
+const uploadToDrive = async (fileObject, fileName) => {
     try {
-        const { serviceType, details } = req.body;
-        console.log(`🤖 AI is drafting a ${serviceType}...`);
+        console.log(`Starting upload for: ${fileName}`);
+        const driveService = google.drive({ version: 'v3', auth });
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(fileObject.buffer);
 
-        // A. The Instruction for AI
-        const prompt = `
-        Act as a Senior Legal Expert in India. Write a professional ${serviceType}.
-        Details: ${JSON.stringify(details)}
-        Rules:
-        1. Use formal legal language suitable for Indian courts.
-        2. Do not use placeholders like [Date], use today's date.
-        3. Return ONLY the document text. No "Here is your draft" intro.
-        `;
-
-        // B. Ask AI
-        const model = genAI.getGenerativeModel({ model: "gemini-pro"});
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const draftText = response.text();
-
-        // C. Send back to Website
-        res.json({ status: "success", draft: draftText });
-
+        const response = await driveService.files.create({
+            resource: { name: fileName, parents: [DRIVE_FOLDER_ID] },
+            media: { mimeType: fileObject.mimetype, body: bufferStream },
+            fields: 'id'
+        });
+        console.log(`Upload Complete. ID: ${response.data.id}`);
+        return response.data.id;
     } catch (error) {
-        console.error("AI Error:", error);
-        res.status(500).json({ status: "error", message: "AI Failed. Check Server Logs." });
+        console.error("GOOGLE DRIVE ERROR:", error.message);
+        throw error;
+    }
+};
+
+// --- ROUTES ---
+
+// 1. Health Check
+app.get('/', (req, res) => res.send('Typomaster Video Server is Running! 🚀'));
+
+// 2. Orders Route
+let orders = [];
+app.get('/api/orders', (req, res) => res.json(orders));
+app.post('/api/orders', upload.single('idProof'), async (req, res) => {
+    try {
+        const orderData = JSON.parse(req.body.orderData);
+        let fileId = "No File";
+        if (req.file) {
+            const newName = `${orderData.order_id}_ID_PROOF${path.extname(req.file.originalname)}`;
+            fileId = await uploadToDrive(req.file, newName);
+        }
+        const finalOrder = { ...orderData, driveFileId: fileId, videoFileId: "Pending" };
+        orders.push(finalOrder);
+        res.status(201).json({ message: "Order Saved", order: finalOrder });
+    } catch (error) {
+        console.error("ORDER ERROR:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-// 3. START SERVER
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// 3. VIDEO ROUTE (The one you need)
+app.post('/api/orders/video', upload.single('video'), async (req, res) => {
+    try {
+        console.log("Receiving Video Request...");
+        const orderId = req.body.orderId || "UNKNOWN_ORDER";
+        
+        if (!req.file) {
+            return res.status(400).json({ message: "No video file received" });
+        }
+
+        const newName = `${orderId}_KYC_VIDEO.webm`; 
+        const fileId = await uploadToDrive(req.file, newName);
+        
+        // Update order status if found
+        const order = orders.find(o => o.order_id === orderId);
+        if (order) order.videoFileId = fileId;
+
+        res.json({ message: "Video Uploaded", fileId: fileId });
+
+    } catch (error) {
+        console.error("CRITICAL VIDEO ERROR:", error);
+        res.status(500).json({ error: error.message, details: "Check Server Logs" });
+    }
 });
+
+// STARTUP TEST (To prove it works)
+async function testDriveConnection() {
+    console.log("---------------------------------------");
+    console.log("🔍 STARTUP TEST V100: Checking Drive ID:", DRIVE_FOLDER_ID);
+    try {
+        const driveService = google.drive({ version: 'v3', auth });
+        await driveService.files.create({
+            resource: { name: 'SERVER_CONNECTION_TEST.txt', parents: [DRIVE_FOLDER_ID] },
+            media: { mimeType: 'text/plain', body: 'Connection Success!' },
+            fields: 'id'
+        });
+        console.log("✅ SUCCESS! Connected to NEW Folder.");
+    } catch (error) {
+        console.error("❌ ERROR: ", error.message);
+    }
+    console.log("---------------------------------------");
+}
+testDriveConnection();
+
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
