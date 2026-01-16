@@ -10,15 +10,14 @@ const PORT = process.env.PORT || 10000;
 
 // --- CONFIGURATION ---
 const GOOGLE_KEYFILE = './googlekey.json'; 
-// This is your NEW folder ID:
 const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; 
 
-// --- MIDDLEWARE (Optimized for Large Files) ---
+// --- MIDDLEWARE ---
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// --- MULTER SETUP (50MB Limit) ---
+// --- MULTER SETUP ---
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 }
@@ -30,7 +29,7 @@ const auth = new google.auth.GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
 
-// --- HELPER: ROBUST UPLOAD FUNCTION ---
+// --- UPLOAD HELPER ---
 const uploadToDrive = async (fileObject, fileName) => {
     try {
         console.log(`Starting upload for: ${fileName}`);
@@ -54,11 +53,12 @@ const uploadToDrive = async (fileObject, fileName) => {
 // --- ROUTES ---
 
 // 1. Health Check
-app.get('/', (req, res) => res.send('Typomaster Video Server is Running! 🚀'));
+app.get('/', (req, res) => res.send('Typomaster Server is Live! 🚀'));
 
 // 2. Orders Route
 let orders = [];
 app.get('/api/orders', (req, res) => res.json(orders));
+
 app.post('/api/orders', upload.single('idProof'), async (req, res) => {
     try {
         const orderData = JSON.parse(req.body.orderData);
@@ -76,7 +76,7 @@ app.post('/api/orders', upload.single('idProof'), async (req, res) => {
     }
 });
 
-// 3. VIDEO ROUTE (The one you need)
+// 3. VIDEO UPLOAD ROUTE
 app.post('/api/orders/video', upload.single('video'), async (req, res) => {
     try {
         console.log("Receiving Video Request...");
@@ -96,23 +96,23 @@ app.post('/api/orders/video', upload.single('video'), async (req, res) => {
         res.json({ message: "Video Uploaded", fileId: fileId });
 
     } catch (error) {
-        console.error("CRITICAL VIDEO ERROR:", error);
-        res.status(500).json({ error: error.message, details: "Check Server Logs" });
+        console.error("VIDEO ERROR:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-// STARTUP TEST (To prove it works)
+// STARTUP TEST
 async function testDriveConnection() {
     console.log("---------------------------------------");
-    console.log("🔍 STARTUP TEST V100: Checking Drive ID:", DRIVE_FOLDER_ID);
+    console.log("🔍 STARTUP TEST: Checking Connection...");
     try {
         const driveService = google.drive({ version: 'v3', auth });
         await driveService.files.create({
             resource: { name: 'SERVER_CONNECTION_TEST.txt', parents: [DRIVE_FOLDER_ID] },
-            media: { mimeType: 'text/plain', body: 'Connection Success!' },
+            media: { mimeType: 'text/plain', body: 'If you see this, it works!' },
             fields: 'id'
         });
-        console.log("✅ SUCCESS! Connected to NEW Folder.");
+        console.log("✅ SUCCESS! Connected to Drive.");
     } catch (error) {
         console.error("❌ ERROR: ", error.message);
     }
