@@ -108,7 +108,7 @@ async function testDriveConnection() {
     try {
         const driveService = google.drive({ version: 'v3', auth });
         await driveService.files.create({
-            resource: { name: 'SERVER_CONNECTION_TEST.txt', parents: [DRIVE_FOLDER_ID] },
+            requestBody: { name: 'SERVER_CONNECTION_TEST.txt', parents: [DRIVE_FOLDER_ID] },
             media: { mimeType: 'text/plain', body: 'If you see this, it works!' },
             fields: 'id'
         });
@@ -146,6 +146,7 @@ testDriveConnection();
 
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
 // Final Restart
+
 
 
 
