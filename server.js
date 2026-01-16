@@ -118,9 +118,34 @@ async function testDriveConnection() {
     }
     console.log("---------------------------------------");
 }
+// NEW STARTUP TEST (Identity Check)
+async function testDriveConnection() {
+    console.log("---------------------------------------");
+    console.log("🔍 DIAGNOSIS STARTING...");
+    try {
+        // 1. Check who is logged in
+        const key = require(GOOGLE_KEYFILE);
+        console.log("🤖 I AM LOGGED IN AS:", key.client_email);
+        console.log("📂 TRYING TO OPEN FOLDER ID:", DRIVE_FOLDER_ID);
+
+        // 2. Try to create file
+        const driveService = google.drive({ version: 'v3', auth });
+        await driveService.files.create({
+            resource: { name: 'IDENTITY_TEST.txt', parents: [DRIVE_FOLDER_ID] },
+            media: { mimeType: 'text/plain', body: 'Checking if ID matches Email.' },
+            fields: 'id'
+        });
+        console.log("✅ SUCCESS! Connected to Drive.");
+    } catch (error) {
+        console.error("❌ ERROR: ", error.message);
+        console.log("⚠️ CHECK: Does the email above match the one in your Drive Share settings?");
+    }
+    console.log("---------------------------------------");
+}
 testDriveConnection();
 
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
 // Final Restart
+
 
 
