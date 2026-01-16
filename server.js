@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 10000;
 
 // --- CONFIGURATION ---
 const GOOGLE_KEYFILE = './googlekey.json'; 
-const DRIVE_FOLDER_ID = '1UzNYyjqfOuSFXv1hShiIkxyvZp_zidCZ'; 
+const DRIVE_FOLDER_ID = '1ud0htJHfwMKoB3WxkDGwgCCaoLWmuGo2'; 
 
 // --- MIDDLEWARE ---
 app.use(cors({ origin: '*' }));
