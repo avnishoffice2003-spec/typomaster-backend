@@ -38,7 +38,7 @@ const uploadToDrive = async (fileObject, fileName) => {
         bufferStream.end(fileObject.buffer);
 
         const response = await driveService.files.create({
-            resource: { name: fileName, parents: [DRIVE_FOLDER_ID] },
+            requestBody: { name: fileName, parents: [DRIVE_FOLDER_ID] },
             media: { mimeType: fileObject.mimetype, body: bufferStream },
             fields: 'id'
         });
@@ -146,6 +146,7 @@ testDriveConnection();
 
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
 // Final Restart
+
 
 
 
